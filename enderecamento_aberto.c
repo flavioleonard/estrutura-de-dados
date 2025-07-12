@@ -15,7 +15,8 @@ typedef struct Registro
 
 // Função hash com sondagem linear
 int hash(long long cpf, int m, int k) {
-    return (cpf % m + k) % m;
+    srand(cpf);
+    return (rand() % m + k) % m;
 }
 
 // Inicializa o arquivo da tabela hash (tabela_hash.dat) com registros vazios
@@ -243,20 +244,15 @@ int main()
 
     // Estas são inserções de teste, além dos 10.000 registros do arquivo.
     // Descomente as linhas abaixo se quiser testar inserções, buscas e exclusões adicionais.
-    /*
-    insere_tabela_hash("Alice Silva", 11223344556LL, 95);
-    insere_tabela_hash("Bob Johnson", 66778899001LL, 88);
-    // Esta deve mostrar "CPF ja existe" se o CPF 11223344556 já tiver sido inserido (seja pelo arquivo ou manualmente)
-    insere_tabela_hash("Charlie Brown", 11223344556LL, 70);
-
-    busca_tabela_hash(66778899001LL);
-    busca_tabela_hash(99999999999LL); // CPF que provavelmente não existe
-
-    exclui_tabela_hash(11223344556LL);
-    exclui_tabela_hash(99999999999LL); // Tenta excluir CPF que não existe
-    */
-
+    
+    // insere_tabela_hash("Alice Silva", 11223344556LL, 95);
+    // insere_tabela_hash("Bob Johnson", 66778899001LL, 88);
+    // insere_tabela_hash("Charlie Brown", 11223344556LL, 70);
     imprimir_tabela_hash(); // Imprime o conteúdo final da tabela hash
 
+    // busca_tabela_hash(23217761500);
+    // exclui_tabela_hash(23217761500);
+    // busca_tabela_hash(23217761500);
+    // busca_tabela_hash(66778899001LL);
     return 0;
 }
