@@ -16,6 +16,16 @@ typedef struct
     int nota;
 } Registro;
 
+long int extrair_chave(char cpf[TAM_CPF])
+{
+    long int chave = 0;
+    for (int i = 0; i < 9; i++)
+    {
+        chave = chave * 10 + (cpf[i] - '0');
+    }
+    return chave;
+}
+
 // Estrutura do nó folha da B+
 typedef struct BMaisFolha
 {
@@ -34,16 +44,7 @@ typedef struct BMaisNo
     int eh_folha;
 } BMaisNo;
 
-long int extrair_chave(char cpf[TAM_CPF])
-{
-    long int chave = 0;
-    for (int i = 0; i < 9; i++)
-    {
-        chave = chave * 10 + (cpf[i] - '0');
-    }
-    return chave;
-}
-
+// Função para criar uma nova folha
 BMaisFolha *criar_folha()
 {
     BMaisFolha *folha = (BMaisFolha *)malloc(sizeof(BMaisFolha));
@@ -74,6 +75,7 @@ typedef struct
     int eh_folha_raiz;
 } BMaisArvore;
 
+// Função para inserir na folha (sem split)
 void inserir_na_folha(BMaisFolha *folha, long int chave, Registro reg)
 {
     int i = folha->num_chaves - 1;
@@ -98,6 +100,7 @@ BMaisFolha *split_folha(BMaisFolha *folha, long int *chave_promovida)
     {
         if (nova_folha->num_chaves >= MAX_CHAVES)
         {
+            printf("[ERRO] Overflow em nova_folha durante split!\n");
             exit(1);
         }
         nova_folha->chaves[nova_folha->num_chaves] = folha->chaves[i];
@@ -134,6 +137,7 @@ BMaisNo *split_no(BMaisNo *no, long int *chave_promovida)
 // Função recursiva para inserir na árvore B+
 void *inserir_rec(void *no, int eh_folha, long int chave, Registro reg, long int *chave_promovida, void **novo_filho)
 {
+    printf("[DEBUG] inserir_rec: no=%p eh_folha=%d chave=%ld\n", no, eh_folha, chave);
     if (eh_folha)
     {
         BMaisFolha *folha = (BMaisFolha *)no;
@@ -192,6 +196,7 @@ void *inserir_rec(void *no, int eh_folha, long int chave, Registro reg, long int
         int i = 0;
         while (i < interno->num_chaves && chave > interno->chaves[i])
             i++;
+        printf("[DEBUG] inserir_rec no interno: no=%p i=%d num_chaves=%d chave=%ld\n", interno, i, interno->num_chaves, chave);
         long int chave_promovida_filho;
         void *novo_filho_filho = NULL;
         // Correção: todos os filhos são folhas se interno->eh_folha == 1
@@ -268,20 +273,10 @@ void salvar_folhas(BMaisFolha *folha, const char *nome_arquivo)
         perror("Erro ao abrir arquivo de dados das folhas");
         return;
     }
-    int folha_count = 0;
     while (folha)
     {
-        if (folha->num_chaves < 0 || folha->num_chaves > MAX_CHAVES)
-        {
-            break;
-        }
-        if (folha->prox == folha)
-        {
-            break;
-        }
         fwrite(folha->registros, sizeof(Registro), folha->num_chaves, f);
         folha = folha->prox;
-        folha_count++;
     }
     fclose(f);
 }
@@ -480,37 +475,39 @@ int remover_bmais(BMaisArvore *arv, long int chave)
 }
 
 // Função para imprimir todos os registros das folhas da árvore B+
-// void imprimir_folhas(BMaisArvore *arv)
-// {
-//     if (!arv->raiz)
-//     {
-//         return;
-//     }
-//     BMaisFolha *folha = NULL;
-//     if (arv->eh_folha_raiz)
-//     {
-//         folha = (BMaisFolha *)arv->raiz;
-//     }
-//     else
-//     {
-//         // Encontra a folha mais à esquerda
-//         BMaisNo *no = (BMaisNo *)arv->raiz;
-//         void *ptr = no;
-//         while (!((BMaisNo *)ptr)->eh_folha)
-//             ptr = ((BMaisNo *)ptr)->filhos[0];
-//         folha = (BMaisFolha *)ptr;
-//     }
-//     int folha_num = 1;
-//     while (folha)
-//     {
-//         for (int i = 0; i < folha->num_chaves; i++)
-//         {
-//             printf("Chave: %ld | Nome: %.*s | Nota: %d\n", folha->chaves[i], TAM_NOME, folha->registros[i].nome, folha->registros[i].nota);
-//         }
-//         folha = folha->prox;
-//         folha_num++;
-//     }
-// }
+void imprimir_folhas(BMaisArvore *arv)
+{
+    if (!arv->raiz)
+    {
+        printf("Árvore vazia.\n");
+        return;
+    }
+    BMaisFolha *folha = NULL;
+    if (arv->eh_folha_raiz)
+    {
+        folha = (BMaisFolha *)arv->raiz;
+    }
+    else
+    {
+        // Encontra a folha mais à esquerda
+        BMaisNo *no = (BMaisNo *)arv->raiz;
+        void *ptr = no;
+        while (!((BMaisNo *)ptr)->eh_folha)
+            ptr = ((BMaisNo *)ptr)->filhos[0];
+        folha = (BMaisFolha *)ptr;
+    }
+    int folha_num = 1;
+    while (folha)
+    {
+        printf("\nFolha %d: %d registros\n", folha_num, folha->num_chaves);
+        for (int i = 0; i < folha->num_chaves; i++)
+        {
+            printf("Chave: %ld | Nome: %.*s | Nota: %d\n", folha->chaves[i], TAM_NOME, folha->registros[i].nome, folha->registros[i].nota);
+        }
+        folha = folha->prox;
+        folha_num++;
+    }
+}
 
 // Nova função para imprimir o índice e o bloco de dados correspondente de cada folha
 void imprimir_indices_e_blocos(BMaisArvore *arv)
@@ -537,110 +534,13 @@ void imprimir_indices_e_blocos(BMaisArvore *arv)
     while (folha)
     {
         printf("Bloco de dados %d: ", bloco);
-
+        for (int i = 0; i < folha->num_chaves; i++)
+        {
+            printf("%ld ", folha->chaves[i]);
+        }
         printf("\n");
         folha = folha->prox;
         bloco++;
-    }
-}
-
-// Função para buscar e imprimir a folha e todos os registros de uma chave
-void consulta_e_imprime_folha(BMaisArvore *arv, long int chave)
-{
-    void *no = arv->raiz;
-    int eh_folha = arv->eh_folha_raiz;
-    while (!eh_folha)
-    {
-        BMaisNo *interno = (BMaisNo *)no;
-        int i = 0;
-        while (i < interno->num_chaves && chave > interno->chaves[i])
-            i++;
-        if (interno->eh_folha)
-        {
-            eh_folha = 1;
-            no = interno->filhos[i];
-        }
-        else
-        {
-            BMaisNo *filho = (BMaisNo *)interno->filhos[i];
-            eh_folha = filho->eh_folha;
-            no = interno->filhos[i];
-        }
-    }
-    BMaisFolha *folha = (BMaisFolha *)no;
-    int idx = -1;
-    for (int i = 0; i < folha->num_chaves; i++)
-    {
-        if (folha->chaves[i] == chave)
-        {
-            idx = i;
-            break;
-        }
-    }
-    if (idx == -1)
-    {
-        printf("Chave %ld não encontrada em nenhuma folha.\n", chave);
-        return;
-    }
-    printf("Chave %ld encontrada na folha em %p.\n", chave, (void *)folha);
-    printf("Todos os registros desta folha:\n");
-    for (int i = 0; i < folha->num_chaves; i++)
-    {
-        printf("Chave: %ld | Nome: %.*s | Nota: %d\n", folha->chaves[i], TAM_NOME, folha->registros[i].nome, folha->registros[i].nota);
-    }
-}
-
-void consulta_chave(BMaisArvore *arv, long int chave)
-{
-    void *no = arv->raiz;
-    int eh_folha = arv->eh_folha_raiz;
-
-    // Navega até a folha correta
-    while (!eh_folha)
-    {
-        BMaisNo *interno = (BMaisNo *)no;
-        int i = 0;
-        while (i < interno->num_chaves && chave > interno->chaves[i])
-            i++;
-
-        if (interno->eh_folha)
-        {
-            eh_folha = 1;
-            no = interno->filhos[i];
-        }
-        else
-        {
-            BMaisNo *filho = (BMaisNo *)interno->filhos[i];
-            eh_folha = filho->eh_folha;
-            no = interno->filhos[i];
-        }
-    }
-
-    BMaisFolha *folha = (BMaisFolha *)no;
-    int idx = -1;
-
-    // Procura a chave específica na folha
-    for (int i = 0; i < folha->num_chaves; i++)
-    {
-        if (folha->chaves[i] == chave)
-        {
-            idx = i;
-            break;
-        }
-    }
-
-    // Se encontrou, imprime o registro
-    if (idx != -1)
-    {
-        Registro *reg = &folha->registros[idx];
-        printf("Registro encontrado:\n");
-        printf("CPF: %s\n", reg->cpf);
-        printf("Nome: %s\n", reg->nome);
-        printf("Nota: %d\n", reg->nota);
-    }
-    else
-    {
-        printf("Registro com chave %ld não encontrado.\n", chave);
     }
 }
 
@@ -648,15 +548,20 @@ int main()
 {
 
     FILE *arq = fopen("registros.dat", "rb");
+    printf("Tentando abrir registros.dat...\n");
     if (!arq)
     {
         perror("Erro ao abrir registros.dat");
+        printf("Certifique-se de que o arquivo registros.dat existe e está no mesmo diretório do executável.\n");
         return 1;
     }
+    printf("Arquivo aberto com sucesso!\n");
     // Verifica tamanho do struct Registro
     fseek(arq, 0, SEEK_END);
     long int tam_arquivo = ftell(arq);
+    printf("Tamanho do arquivo: %ld bytes\n", tam_arquivo);
     fseek(arq, 0, SEEK_SET);
+    printf("Tamanho do struct Registro: %zu bytes\n", sizeof(Registro));
     if (tam_arquivo % sizeof(Registro) != 0)
     {
         printf("Erro: O arquivo registros.dat não está compatível com o struct Registro.\n");
@@ -666,55 +571,52 @@ int main()
     Registro reg;
     int count = 0;
     BMaisArvore arvore = {0};
+    printf("Iniciando leitura dos registros...\n");
     // Leitura e inserção na árvore B+
     while (fread(&reg, sizeof(Registro), 1, arq) == 1)
     {
         long int chave = extrair_chave(reg.cpf);
         inserir_bmais(&arvore, chave, reg);
         count++;
+        if (count % 100 == 0)
+            printf("Lidos %d registros...\n", count);
     }
     fclose(arq);
+    printf("Total de registros lidos e inseridos na B+: %d\n", count);
     if (count == 0)
     {
         printf("Nenhum registro foi lido. Verifique o arquivo registros.dat.\n");
         return 1;
     }
+    // Salva as folhas (dados) e o índice (estrutura da árvore)
     if (arvore.eh_folha_raiz)
         salvar_folhas((BMaisFolha *)arvore.raiz, "bplus_dados.dat");
     else
     {
         BMaisNo *no = (BMaisNo *)arvore.raiz;
         void *folha = no;
-        int debug_count = 0;
         while (!((BMaisNo *)folha)->eh_folha)
-        {
             folha = ((BMaisNo *)folha)->filhos[0];
-            debug_count++;
-            if (folha == NULL)
-            {
-                return 1;
-            }
-        }
         salvar_folhas((BMaisFolha *)folha, "bplus_dados.dat");
     }
-
     salvar_indice(&arvore, "bplus_index.dat");
+    printf("Arquivos bplus_dados.dat e bplus_index.dat gerados!\n");
 
     // Imprime índice e bloco de dados de cada folha
-    // imprimir_folhas(&arvore);
+    imprimir_indices_e_blocos(&arvore);
 
     // Exemplos de uso das novas funções:
     // Exemplo de consulta
-    long int chave_busca = 249568221;
-    consulta_e_imprime_folha(&arvore, chave_busca);
-    remover_bmais(&arvore, chave_busca);
-    consulta_e_imprime_folha(&arvore, chave_busca);
-    Registro registroNovo = {"Novo Nome", "12345678901", 95};
-    inserir_bmais(&arvore, 123456789, registroNovo);
-
-    consulta_chave(&arvore, 123456789);
-    remover_bmais(&arvore, 123456789);
-    consulta_chave(&arvore, 123456789);
+    long int chave_busca = 123456789;
+    Registro *resultado = buscar_bmais(&arvore, chave_busca);
+    if (resultado)
+    {
+        printf("Registro encontrado: %.*s\n", TAM_NOME, resultado->nome);
+    }
+    else
+    {
+        printf("Registro não encontrado!\n");
+    }
 
     /*
     // Exemplo de remoção

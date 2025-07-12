@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define TAMANHO_TABELA 10000
+#define TAMANHO_TABELA 100000
 #define TAM_NOME 50
 
 typedef struct Registro {
