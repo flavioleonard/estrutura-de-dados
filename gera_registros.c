@@ -5,12 +5,13 @@
 
 #define TOTAL_REGISTROS 10000
 #define TAM_NOME 50
-#define TAM_CPF 11
+// TAM_CPF não é mais necessário para o tipo, mas pode ser útil se você ainda quiser validar dígitos ou formatar
+// Por simplicidade, vou manter a validação dos 9 primeiros dígitos únicos.
 
 typedef struct
 {
     char nome[TAM_NOME];
-    char cpf[TAM_CPF]; // CPF como string de 11 dígitos
+    long long int cpf; // CPF agora é um long long int
     int nota;
 } Registro;
 
@@ -56,39 +57,42 @@ void gerar_nome_completo(char *nome_completo)
     // Não adiciona terminador nulo, pois o campo é fixo
 }
 
-// Função para extrair a chave dos 9 primeiros dígitos do CPF
-long int extrair_chave(char cpf[TAM_CPF])
-{
-    long int chave = 0;
-    for (int i = 0; i < 9; i++)
-    {
-        chave = chave * 10 + (cpf[i] - '0');
-    }
-    return chave;
-}
-
-// Gera um CPF único de 11 dígitos (char), garantindo unicidade dos 9 primeiros dígitos
-void gerar_cpf_aleatorio(char cpfs_gerados[][TAM_CPF], long int *chaves_usadas, int count, char *cpf)
+// Gera um CPF único de 11 dígitos (long long int), garantindo unicidade dos 9 primeiros dígitos
+// cpfs_usados é um array de long long int
+void gerar_cpf_aleatorio(long long int *cpfs_usados, int count, long long int *cpf_gerado)
 {
     int unico = 0;
+    long long int novo_cpf;
+    long long int nove_digitos_gerado;
+
     while (!unico)
     {
         unico = 1;
-        for (int i = 0; i < 11; i++)
-        {
-            cpf[i] = '0' + (rand() % 10);
+        // Gera os primeiros 9 dígitos
+        nove_digitos_gerado = 0;
+        for (int i = 0; i < 9; i++) {
+            nove_digitos_gerado = nove_digitos_gerado * 10 + (rand() % 10);
         }
-        long int chave = extrair_chave(cpf);
+
+        // Gera os últimos 2 dígitos para completar o CPF de 11 dígitos
+        int ultimos_dois_digitos = rand() % 100;
+        // Combina os 9 primeiros dígitos com os 2 últimos
+        // Multiplica os 9 primeiros por 100 e adiciona os 2 últimos
+        novo_cpf = nove_digitos_gerado * 100 + ultimos_dois_digitos;
+
         // Verifica unicidade dos 9 primeiros dígitos
         for (int i = 0; i < count; i++)
         {
-            if (chaves_usadas[i] == chave)
+            // Pega os 9 primeiros dígitos do CPF já existente para comparação
+            long long int chave_existente = cpfs_usados[i] / 100; 
+            if (chave_existente == nove_digitos_gerado)
             {
                 unico = 0;
                 break;
             }
         }
     }
+    *cpf_gerado = novo_cpf;
 }
 
 int gerar_nota_aleatoria()
@@ -106,14 +110,13 @@ void gerar_registros()
     }
 
     Registro reg;
-    char cpfs_gerados[TOTAL_REGISTROS][TAM_CPF];
-    long int chaves_usadas[TOTAL_REGISTROS];
+    long long int cpfs_gerados_array[TOTAL_REGISTROS]; // Array para armazenar os CPFs (long long int) gerados
+
     for (int i = 0; i < TOTAL_REGISTROS; i++)
     {
         gerar_nome_completo(reg.nome);
-        gerar_cpf_aleatorio(cpfs_gerados, chaves_usadas, i, reg.cpf);
-        memcpy(cpfs_gerados[i], reg.cpf, TAM_CPF);
-        chaves_usadas[i] = extrair_chave(reg.cpf);
+        gerar_cpf_aleatorio(cpfs_gerados_array, i, &reg.cpf); // Passa o array de CPFs já gerados e o endereço do CPF do registro
+        cpfs_gerados_array[i] = reg.cpf; // Armazena o CPF gerado no array de controle
         reg.nota = gerar_nota_aleatoria();
         fwrite(&reg, sizeof(Registro), 1, arquivo);
         if ((i + 1) % 1000 == 0)
@@ -142,7 +145,7 @@ void ler_registros()
     {
         printf("Registro %d:\n", ++contador);
         printf("Nome: %.*s\n", TAM_NOME, reg.nome);
-        printf("CPF: %.*s\n", TAM_CPF, reg.cpf);
+        printf("CPF: %lld\n", reg.cpf); // Imprime o CPF como long long int
         printf("Nota: %d\n\n", reg.nota);
         if (contador % 20 == 0)
         {
