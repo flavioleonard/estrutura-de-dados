@@ -40,7 +40,7 @@ int main()
     while (fread(&reg, sizeof(Registro), 1, f) == 1)
     {
         Registro_para_Dados(&reg, &d);
-        raiz = TARVBP_insere(raiz, &d, 2, "ArqIdx.bin", "ArqDados.bin");
+        raiz = TARVBP_insere(raiz, &d, 2, "ArqIdx.dat", "ArqDados.dat");
         char chave[13];
         cpf9_para_str(reg.cpf, chave);
         printf("Inserido: CPF chave: %s | raiz: %lld | idx: %d\n", chave, raiz, i + 1);
@@ -64,7 +64,7 @@ int main()
     {
         char chave[13];
         cpf9_para_str(reg.cpf, chave);
-        long long pos = busca_cpf("ArqIdx.bin", chave, raiz);
+        long long pos = busca_cpf("ArqIdx.dat", chave, raiz);
         printf("Busca: CPF chave: %s | idx: %d | resultado: %lld\n", chave, i + 1, pos);
         if (pos != -1)
             encontrados++;
@@ -74,5 +74,17 @@ int main()
     }
     fclose(f);
     printf("%d de %d registros encontrados na árvore B+ (busca por chave).\n", encontrados, i);
+
+    // Salva o valor da raiz para uso posterior
+    FILE *fraiz = fopen("raiz.dat", "wb");
+    if (fraiz)
+    {
+        fwrite(&raiz, sizeof(long long), 1, fraiz);
+        fclose(fraiz);
+    }
+    else
+    {
+        printf("Aviso: não foi possível salvar o valor da raiz em raiz.dat!\n");
+    }
     return 0;
 }

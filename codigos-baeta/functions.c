@@ -65,10 +65,10 @@ const char *sobrenomes[100] = {
 // Inicializa arquivos de índice e dados
 void inic_arq()
 {
-    FILE *f = fopen("ArqIdx.bin", "wb");
+    FILE *f = fopen("ArqIdx.dat", "wb");
     if (f)
         fclose(f);
-    f = fopen("ArqDados.bin", "wb");
+    f = fopen("ArqDados.dat", "wb");
     if (f)
         fclose(f);
 }
@@ -78,7 +78,7 @@ void gerador(const char **n, const char **s, const char *arquivo)
     char arq[50];
     char result[50];
     strcpy(arq, arquivo);
-    strcat(arq, ".bin");
+    strcat(arq, ".dat");
     FILE *f = fopen(arq, "wb");
     for (int i = 0; i < 100; i++)
     {
@@ -97,7 +97,7 @@ void gerador_nota(const char *arquivo)
     char arq[50];
     int result = 0;
     strcpy(arq, arquivo);
-    strcat(arq, ".bin");
+    strcat(arq, ".dat");
     FILE *f = fopen(arq, "wb");
     for (int i = 0; i < 10000; i++)
     {
@@ -111,7 +111,7 @@ void leitura_escrita(const char *arquivo_bin, const char *arquivo_txt)
 {
     char arq_b[50], arq_t[50], var[50];
     strcpy(arq_b, arquivo_bin);
-    strcat(arq_b, ".bin");
+    strcat(arq_b, ".dat");
     strcpy(arq_t, arquivo_txt);
     strcat(arq_t, ".txt");
     FILE *f = fopen(arq_b, "rb");
@@ -135,7 +135,7 @@ void leitura_escrita_nota(const char *arquivo_bin, const char *arquivo_txt)
     char arq_b[50], arq_t[50];
     int result = 0;
     strcpy(arq_b, arquivo_bin);
-    strcat(arq_b, ".bin");
+    strcat(arq_b, ".dat");
     strcpy(arq_t, arquivo_txt);
     strcat(arq_t, ".txt");
     FILE *f = fopen(arq_b, "rb");

@@ -13,13 +13,21 @@ void ler_cpf_chave(char *chave)
 int main()
 {
     long long raiz = -1;
-    FILE *fidx = fopen("ArqIdx.bin", "rb");
+    FILE *fidx = fopen("ArqIdx.dat", "rb");
     if (!fidx)
     {
         printf("Arquivo de índice não encontrado. Gere a árvore primeiro!\n");
         return 1;
     }
     fclose(fidx);
+    FILE *fraiz = fopen("raiz.dat", "rb");
+    if (!fraiz)
+    {
+        printf("Arquivo da raiz não encontrado. Gere a árvore primeiro!\n");
+        return 1;
+    }
+    fread(&raiz, sizeof(long long), 1, fraiz);
+    fclose(fraiz);
     printf("Menu Árvore B+\n");
     printf("1 - Buscar registro pelo CPF (9 dígitos)\n");
     printf("0 - Sair\n");
@@ -33,17 +41,16 @@ int main()
         if (op == 1)
         {
             ler_cpf_chave(chave);
-            // A raiz precisa ser recuperada. Vamos assumir que é o primeiro nó do arquivo (offset 0)
-            raiz = 0;
-            long long pos = busca_cpf("ArqIdx.bin", chave, raiz);
+            // Usa o valor correto da raiz lido de raiz.dat
+            long long pos = busca_cpf("ArqIdx.dat", chave, raiz);
             if (pos == -1)
             {
                 printf("Registro não encontrado para chave %s\n", chave);
             }
             else
             {
-                // Lê o registro correspondente em ArqDados.bin
-                FILE *fdados = fopen("ArqDados.bin", "rb");
+                // Lê o registro correspondente em ArqDados.dat
+                FILE *fdados = fopen("ArqDados.dat", "rb");
                 if (!fdados)
                 {
                     printf("Arquivo de dados não encontrado!\n");
