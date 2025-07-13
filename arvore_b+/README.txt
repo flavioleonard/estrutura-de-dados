@@ -19,7 +19,7 @@ Abra o terminal na pasta `arvore_b+` e compile separadamente cada programa, pois
   ```
 - Para o menu interativo de operações na árvore B+:
   ```
-  gcc -o opera_arvorebmais.exe opera_arvorebmais.c TARVBP.c functions.c
+  gcc -o opera_arvorebmais opera_arvorebmais.c TARVBP.c functions.c
   ```
 
 

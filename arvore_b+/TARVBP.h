@@ -22,6 +22,8 @@ TARVBP TARVBP_cria(char *idx);
 void ler_no(char *arq, long long reg, TARVBP *no);
 long long busca_cpf(char *arq_idx, char *cpf, long long reg);
 void escrever_no(char *arq, long long reg, TARVBP *no);
+
 long long TARVBP_insere(long reg, Dados *d, int t, char *idx, char *dados);
+long long TARVBP_remove(long reg, char *chave, int t, char *idx, char *dados, int *diminuiu);
 
 #endif

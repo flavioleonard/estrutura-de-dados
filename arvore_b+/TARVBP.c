@@ -1,6 +1,100 @@
+
+#include "TARVBP.h"
+#include <string.h>
+// ...existing code...
+
+static int remove_de_folha(TARVBP *no, const char *chave)
+{
+    int i = 0;
+    while (i < no->num_chaves && strcmp(no->chaves[i], chave) < 0)
+        i++;
+    if (i == no->num_chaves || strcmp(no->chaves[i], chave) != 0)
+        return 0; // não encontrou
+    for (; i < no->num_chaves - 1; i++)
+    {
+        strcpy(no->chaves[i], no->chaves[i + 1]);
+        no->reg[i] = no->reg[i + 1];
+    }
+    no->num_chaves--;
+    return 1;
+}
+
+#include "TARVBP.h"
+#include <string.h>
+// ...existing code...
+
+// Remove a chave de um nó folha
+// ...existing code...
+
+// Função auxiliar para zerar o registro no arquivo de dados
+static void zera_registro_dados(const char *dados, long long pos)
+{
+    Dados vazio = {0};
+    FILE *f = fopen(dados, "rb+");
+    if (f)
+    {
+        fseek(f, pos, SEEK_SET);
+        fwrite(&vazio, sizeof(Dados), 1, f);
+        fclose(f);
+    }
+}
+
+// Função principal de remoção completa
+long long TARVBP_remove(long reg, char *chave, int t, char *idx, char *dados, int *diminuiu)
+{
+    if (reg == -1)
+    {
+        *diminuiu = 0;
+        return -1;
+    }
+    TARVBP no;
+    ler_no(idx, reg, &no);
+    int i = 0;
+    while (i < no.num_chaves && strcmp(chave, no.chaves[i]) > 0)
+        i++;
+
+    if (no.folha)
+    {
+        // Remover do arquivo de dados
+        int found = 0;
+        for (int j = 0; j < no.num_chaves; j++)
+        {
+            if (strcmp(no.chaves[j], chave) == 0)
+            {
+                zera_registro_dados(dados, no.reg[j]);
+                found = 1;
+                break;
+            }
+        }
+        int ok = remove_de_folha(&no, chave);
+        if (!ok)
+        {
+            *diminuiu = 0;
+            return reg;
+        }
+        escrever_no(idx, reg, &no);
+        *diminuiu = (no.num_chaves < t - 1);
+        return reg;
+    }
+
+    // Nó interno: desce recursivamente
+    long long filho = no.filhos[i];
+    int diminuiu_filho = 0;
+    long long novo_filho = TARVBP_remove(filho, chave, t, idx, dados, &diminuiu_filho);
+    no.filhos[i] = novo_filho;
+    // TODO: Atualizar chaves do nó interno se necessário
+    // TODO: Tratar underflow: redistribuição ou concatenação
+    escrever_no(idx, reg, &no);
+    *diminuiu = 0; // Atualizar conforme tratamento de underflow
+    return reg;
+}
+
 #include "TARVBP.h"
 #include <string.h>
 int nos_atual = 0;
+
+// Remove a chave de um nó folha
+// ...existing code...
 
 TARVBP TARVBP_cria(char *idx)
 {

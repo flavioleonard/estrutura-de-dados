@@ -39,8 +39,9 @@ int main()
     do
     {
         printf("\nMenu Arvore B+\n");
-        printf("1 - Buscar registro pelo CPF (9 digitos)\n");
+        printf("1 - Buscar registro pelo CPF (11 digitos)\n");
         printf("2 - Inserir novo registro\n");
+        printf("3 - Remover registro pelo CPF (11 digitos)\n");
         printf("0 - Sair\n");
         printf("\nEscolha: ");
         if (scanf("%d", &op) != 1)
@@ -112,6 +113,22 @@ int main()
                 fclose(fraiz);
             }
             printf("Registro inserido com sucesso!\n");
+        }
+        else if (op == 3)
+        {
+            char chave9[10];
+            long long int cpf;
+            ler_cpf_chave(&cpf, chave9);
+            int diminuiu = 0;
+            raiz = TARVBP_remove(raiz, chave9, 2, "bplus_index.dat", "bplus_dados.dat", &diminuiu);
+            // Atualiza o arquivo da raiz
+            FILE *fraiz = fopen("raiz.dat", "wb");
+            if (fraiz)
+            {
+                fwrite(&raiz, sizeof(long long), 1, fraiz);
+                fclose(fraiz);
+            }
+            printf("Remoção concluída.\n");
         }
         else if (op != 0)
         {
