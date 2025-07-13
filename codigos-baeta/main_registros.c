@@ -26,7 +26,7 @@ void Registro_para_Dados(const Registro *reg, Dados *d)
 
 int main()
 {
-    FILE *f = fopen("registros.dat", "rb");
+    FILE *f = fopen("../registros.dat", "rb");
     if (!f)
     {
         perror("Erro ao abrir registros.dat");
@@ -41,6 +41,9 @@ int main()
     {
         Registro_para_Dados(&reg, &d);
         raiz = TARVBP_insere(raiz, &d, 2, "ArqIdx.bin", "ArqDados.bin");
+        char chave[13];
+        cpf9_para_str(reg.cpf, chave);
+        printf("Inserido: CPF chave: %s | raiz: %lld | idx: %d\n", chave, raiz, i + 1);
         if ((i + 1) % 1000 == 0)
             printf("Inseridos %d registros...\n", i + 1);
         i++;
@@ -49,7 +52,7 @@ int main()
     printf("Todos os registros foram inseridos na árvore B+!\n");
 
     // Verificação: busca todos os 10000 CPFs na árvore B+
-    f = fopen("registros.dat", "rb");
+    f = fopen("../registros.dat", "rb");
     if (!f)
     {
         perror("Erro ao abrir registros.dat para verificação");
@@ -62,6 +65,7 @@ int main()
         char chave[13];
         cpf9_para_str(reg.cpf, chave);
         long long pos = busca_cpf("ArqIdx.bin", chave, raiz);
+        printf("Busca: CPF chave: %s | idx: %d | resultado: %lld\n", chave, i + 1, pos);
         if (pos != -1)
             encontrados++;
         else
