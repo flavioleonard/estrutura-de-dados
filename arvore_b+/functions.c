@@ -65,10 +65,10 @@ const char *sobrenomes[100] = {
 // Inicializa arquivos de índice e dados
 void inic_arq()
 {
-    FILE *f = fopen("ArqIdx.dat", "wb");
+    FILE *f = fopen("bplus_index.dat", "wb");
     if (f)
         fclose(f);
-    f = fopen("ArqDados.dat", "wb");
+    f = fopen("bplus_dados.dat", "wb");
     if (f)
         fclose(f);
 }
