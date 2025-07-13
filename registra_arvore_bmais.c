@@ -6,7 +6,7 @@
 #include <string.h>
 #include <stdbool.h>
 
-#define ORDEM 100 // d (ajuste conforme desejado para testes, ex: 50)
+#define ORDEM 20 // d (ajuste conforme desejado para testes, ex: 50)
 #define MAX_CHAVES (2 * ORDEM)
 #define MAX_FILHOS (2 * ORDEM + 1)
 #define TAM_NOME 50
@@ -29,20 +29,20 @@ long int extrair_chave(long long int cpf)
 // Estrutura do nó folha (arquivo de dados)
 typedef struct
 {
-    int num_registros; // m
-    long int pai;      // offset do nó pai no arquivo de índice
-    long int prox;     // offset da próxima folha no arquivo de dados
-    Registro registros[MAX_CHAVES];
+    int num_registros;   // m
+    long int pai;        // offset do nó pai no arquivo de índice
+    long int prox;       // offset da próxima folha no arquivo de dados
+    Registro *registros; // ponteiro dinâmico
 } NoFolha;
 
 // Estrutura do nó interno (arquivo de índice)
 typedef struct
 {
-    int num_chaves;              // m
-    bool eh_folha;               // TRUE se aponta para folhas
-    long int pai;                // offset do nó pai no arquivo de índice
-    long int filhos[MAX_FILHOS]; // offsets dos filhos (índice ou dados)
-    long int chaves[MAX_CHAVES]; // chaves (9 primeiros dígitos do CPF)
+    int num_chaves;   // m
+    bool eh_folha;    // TRUE se aponta para folhas
+    long int pai;     // offset do nó pai no arquivo de índice
+    long int *filhos; // ponteiro dinâmico
+    long int *chaves; // ponteiro dinâmico
 } NoIndice;
 
 // Estrutura do arquivo de metadados
@@ -119,9 +119,16 @@ void criar_arvore_bmais(const char *arquivo_registros, const char *arquivo_indic
     folha_raiz.num_registros = 0;
     folha_raiz.pai = -1;
     folha_raiz.prox = -1;
+    folha_raiz.registros = (Registro *)malloc(sizeof(Registro) * MAX_CHAVES);
+    if (!folha_raiz.registros)
+    {
+        perror("malloc folha_raiz");
+        exit(1);
+    }
     // Offset da folha raiz no arquivo de dados
     long int folha_offset = ftell(fdad);
-    fwrite(&folha_raiz, sizeof(NoFolha), 1, fdad);
+    fwrite(&folha_raiz, sizeof(NoFolha), 1, fdad);                    // Escreve struct (sem registros)
+    fwrite(folha_raiz.registros, sizeof(Registro), MAX_CHAVES, fdad); // Escreve registros
     fflush(fdad);
 
     // Atualiza metadados para apontar para a folha raiz
@@ -134,11 +141,26 @@ void criar_arvore_bmais(const char *arquivo_registros, const char *arquivo_indic
     // 4. Ler registros.dat e inserir recursivamente na árvore B+
     Registro reg;
     int total = 0;
+    int registro_idx = 0;
     while (fread(&reg, sizeof(Registro), 1, freg) == 1)
     {
-        printf("[DEBUG] Lendo registro: CPF=%lld, Nome=%s, Nota=%d\n", reg.cpf, reg.nome, reg.nota);
+        printf("[DEBUG] Registro %d: CPF=%lld, Nota=%d\n", registro_idx, reg.cpf, reg.nota);
+        // printf("[DEBUG] Nome=%s\n", reg.nome); // Se quiser testar só o nome depois
         inserir_bplus(fidx, fdad, fmeta, &meta, reg);
         total++;
+        registro_idx++;
+    }
+    if (feof(freg))
+    {
+        printf("[DEBUG] Fim do arquivo atingido após %d registros.\n", total);
+    }
+    else if (ferror(freg))
+    {
+        printf("[ERRO] Erro de leitura em registros.dat após %d registros!\n", total);
+    }
+    else
+    {
+        printf("[DEBUG] Loop de leitura interrompido por motivo desconhecido após %d registros.\n", total);
     }
     printf("Registros inseridos: %d\n", total);
 
@@ -156,7 +178,12 @@ void criar_arvore_bmais(const char *arquivo_registros, const char *arquivo_indic
 long int escrever_folha(FILE *fdad, NoFolha *folha, long int offset)
 {
     fseek(fdad, offset, SEEK_SET);
-    fwrite(folha, sizeof(NoFolha), 1, fdad);
+    // Escreve apenas os campos escalares
+    fwrite(&folha->num_registros, sizeof(int), 1, fdad);
+    fwrite(&folha->pai, sizeof(long int), 1, fdad);
+    fwrite(&folha->prox, sizeof(long int), 1, fdad);
+    // Escreve o array de registros
+    fwrite(folha->registros, sizeof(Registro), MAX_CHAVES, fdad);
     fflush(fdad);
     return offset;
 }
@@ -165,7 +192,13 @@ long int escrever_folha(FILE *fdad, NoFolha *folha, long int offset)
 long int escrever_indice(FILE *fidx, NoIndice *indice, long int offset)
 {
     fseek(fidx, offset, SEEK_SET);
-    fwrite(indice, sizeof(NoIndice), 1, fidx);
+    // Escreve apenas os campos escalares
+    fwrite(&indice->num_chaves, sizeof(int), 1, fidx);
+    fwrite(&indice->eh_folha, sizeof(bool), 1, fidx);
+    fwrite(&indice->pai, sizeof(long int), 1, fidx);
+    // Escreve os arrays dinâmicos
+    fwrite(indice->filhos, sizeof(long int), MAX_FILHOS, fidx);
+    fwrite(indice->chaves, sizeof(long int), MAX_CHAVES, fidx);
     fflush(fidx);
     return offset;
 }
@@ -174,14 +207,27 @@ long int escrever_indice(FILE *fidx, NoIndice *indice, long int offset)
 void ler_folha(FILE *fdad, NoFolha *folha, long int offset)
 {
     fseek(fdad, offset, SEEK_SET);
-    fread(folha, sizeof(NoFolha), 1, fdad);
+    fread(&folha->num_registros, sizeof(int), 1, fdad);
+    fread(&folha->pai, sizeof(long int), 1, fdad);
+    fread(&folha->prox, sizeof(long int), 1, fdad);
+    if (!folha->registros)
+        folha->registros = (Registro *)malloc(sizeof(Registro) * MAX_CHAVES);
+    fread(folha->registros, sizeof(Registro), MAX_CHAVES, fdad);
 }
 
 // Função auxiliar: lê nó índice do arquivo de índices
 void ler_indice(FILE *fidx, NoIndice *indice, long int offset)
 {
     fseek(fidx, offset, SEEK_SET);
-    fread(indice, sizeof(NoIndice), 1, fidx);
+    fread(&indice->num_chaves, sizeof(int), 1, fidx);
+    fread(&indice->eh_folha, sizeof(bool), 1, fidx);
+    fread(&indice->pai, sizeof(long int), 1, fidx);
+    if (!indice->filhos)
+        indice->filhos = (long int *)malloc(sizeof(long int) * MAX_FILHOS);
+    if (!indice->chaves)
+        indice->chaves = (long int *)malloc(sizeof(long int) * MAX_CHAVES);
+    fread(indice->filhos, sizeof(long int), MAX_FILHOS, fidx);
+    fread(indice->chaves, sizeof(long int), MAX_CHAVES, fidx);
 }
 
 // Split de folha: retorna offset da nova folha criada e chave promovida
@@ -191,6 +237,12 @@ void split_folha(FILE *fdad, NoFolha *folha, long int folha_offset, long int *no
     nova_folha.num_registros = 0;
     nova_folha.pai = folha->pai;
     nova_folha.prox = folha->prox;
+    nova_folha.registros = (Registro *)malloc(sizeof(Registro) * MAX_CHAVES);
+    if (!nova_folha.registros)
+    {
+        perror("malloc split_folha");
+        exit(1);
+    }
     int meio = MAX_CHAVES / 2;
     for (int i = meio; i < MAX_CHAVES; i++)
     {
@@ -206,6 +258,7 @@ void split_folha(FILE *fdad, NoFolha *folha, long int folha_offset, long int *no
     escrever_folha(fdad, &nova_folha, *nova_folha_offset);
     // Chave promovida: menor chave da nova folha
     *chave_promovida = extrair_chave(nova_folha.registros[0].cpf);
+    free(nova_folha.registros);
 }
 
 // Split de índice: retorna offset do novo índice criado e chave promovida
@@ -215,6 +268,13 @@ void split_indice(FILE *fidx, NoIndice *indice, long int indice_offset, long int
     novo_indice.num_chaves = 0;
     novo_indice.eh_folha = indice->eh_folha;
     novo_indice.pai = indice->pai;
+    novo_indice.filhos = (long int *)malloc(sizeof(long int) * MAX_FILHOS);
+    novo_indice.chaves = (long int *)malloc(sizeof(long int) * MAX_CHAVES);
+    if (!novo_indice.filhos || !novo_indice.chaves)
+    {
+        perror("malloc split_indice");
+        exit(1);
+    }
     int meio = MAX_CHAVES / 2;
     // Chave promovida é a do meio
     *chave_promovida = indice->chaves[meio];
@@ -234,6 +294,8 @@ void split_indice(FILE *fidx, NoIndice *indice, long int indice_offset, long int
     *novo_indice_offset = ftell(fidx);
     escrever_indice(fidx, indice, indice_offset);
     escrever_indice(fidx, &novo_indice, *novo_indice_offset);
+    free(novo_indice.filhos);
+    free(novo_indice.chaves);
 }
 
 // Inserção recursiva: insere registro e propaga splits
@@ -242,9 +304,18 @@ void inserir_recursivo(FILE *fidx, FILE *fdad, FILE *fmeta, Metadados *meta, lon
     if (eh_folha)
     {
         // Inserir em folha
-        NoFolha folha;
+        NoFolha folha = {0};
+        folha.registros = NULL;
         ler_folha(fdad, &folha, no_offset);
         // Inserção ordenada
+        if (folha.num_registros >= MAX_CHAVES + 1)
+        {
+            printf("[ERRO] Tentativa de inserir além do limite da folha! num_registros=%d\n", folha.num_registros);
+            free(folha.registros);
+            exit(1);
+        }
+        // Realoca temporariamente para permitir o shift
+        folha.registros = (Registro *)realloc(folha.registros, sizeof(Registro) * (MAX_CHAVES + 1));
         int i = folha.num_registros - 1;
         while (i >= 0 && extrair_chave(folha.registros[i].cpf) > extrair_chave(reg.cpf))
         {
@@ -259,25 +330,32 @@ void inserir_recursivo(FILE *fidx, FILE *fdad, FILE *fmeta, Metadados *meta, lon
                 *nova_chave = -1;
             if (novo_filho_offset)
                 *novo_filho_offset = -1;
+            // Reduz para MAX_CHAVES
+            folha.registros = (Registro *)realloc(folha.registros, sizeof(Registro) * MAX_CHAVES);
             escrever_folha(fdad, &folha, no_offset);
+            free(folha.registros);
             return;
         }
         else
         {
             // Split de folha
             long int nova_folha_offset, chave_promovida;
+            folha.registros = (Registro *)realloc(folha.registros, sizeof(Registro) * MAX_CHAVES); // Garante tamanho correto antes do split
             split_folha(fdad, &folha, no_offset, &nova_folha_offset, &chave_promovida);
             if (nova_chave)
                 *nova_chave = chave_promovida;
             if (novo_filho_offset)
                 *novo_filho_offset = nova_folha_offset;
+            free(folha.registros);
             return;
         }
     }
     else
     {
         // Inserir em índice
-        NoIndice indice;
+        NoIndice indice = {0};
+        indice.filhos = NULL;
+        indice.chaves = NULL;
         ler_indice(fidx, &indice, no_offset);
         // Descobre filho correto
         int pos = 0;
@@ -286,7 +364,11 @@ void inserir_recursivo(FILE *fidx, FILE *fdad, FILE *fmeta, Metadados *meta, lon
         long int nova_chave_val = -1, novo_filho_offset_val = -1;
         inserir_recursivo(fidx, fdad, fmeta, meta, indice.filhos[pos], reg, indice.eh_folha, &nova_chave_val, &novo_filho_offset_val);
         if (nova_chave_val == -1)
+        {
+            free(indice.filhos);
+            free(indice.chaves);
             return; // Não houve split abaixo
+        }
         // Inserir nova_chave e novo_filho_offset neste índice
         for (int i = indice.num_chaves; i > pos; i--)
         {
@@ -299,6 +381,8 @@ void inserir_recursivo(FILE *fidx, FILE *fdad, FILE *fmeta, Metadados *meta, lon
         if (indice.num_chaves <= MAX_CHAVES)
         {
             escrever_indice(fidx, &indice, no_offset);
+            free(indice.filhos);
+            free(indice.chaves);
             return;
         }
         else
@@ -313,11 +397,20 @@ void inserir_recursivo(FILE *fidx, FILE *fdad, FILE *fmeta, Metadados *meta, lon
                 nova_raiz.num_chaves = 1;
                 nova_raiz.eh_folha = false;
                 nova_raiz.pai = -1;
+                nova_raiz.filhos = (long int *)malloc(sizeof(long int) * MAX_FILHOS);
+                nova_raiz.chaves = (long int *)malloc(sizeof(long int) * MAX_CHAVES);
+                if (!nova_raiz.filhos || !nova_raiz.chaves)
+                {
+                    perror("malloc nova_raiz");
+                    exit(1);
+                }
                 nova_raiz.chaves[0] = chave_promovida;
                 nova_raiz.filhos[0] = no_offset;
                 nova_raiz.filhos[1] = novo_indice_offset;
                 long int nova_raiz_offset = ftell(fidx);
                 escrever_indice(fidx, &nova_raiz, nova_raiz_offset);
+                free(nova_raiz.filhos);
+                free(nova_raiz.chaves);
                 // Atualiza metadados
                 meta->raiz_offset = nova_raiz_offset;
                 meta->raiz_eh_folha = false;
@@ -333,6 +426,8 @@ void inserir_recursivo(FILE *fidx, FILE *fdad, FILE *fmeta, Metadados *meta, lon
                 if (novo_filho_offset)
                     *novo_filho_offset = novo_indice_offset;
             }
+            free(indice.filhos);
+            free(indice.chaves);
         }
     }
 }
@@ -349,11 +444,20 @@ void inserir_bplus(FILE *fidx, FILE *fdad, FILE *fmeta, Metadados *meta, Registr
         nova_raiz.num_chaves = 1;
         nova_raiz.eh_folha = true;
         nova_raiz.pai = -1;
+        nova_raiz.filhos = (long int *)malloc(sizeof(long int) * MAX_FILHOS);
+        nova_raiz.chaves = (long int *)malloc(sizeof(long int) * MAX_CHAVES);
+        if (!nova_raiz.filhos || !nova_raiz.chaves)
+        {
+            perror("malloc nova_raiz folha");
+            exit(1);
+        }
         nova_raiz.chaves[0] = nova_chave;
         nova_raiz.filhos[0] = meta->raiz_offset;
         nova_raiz.filhos[1] = novo_filho_offset;
         long int nova_raiz_offset = ftell(fidx);
         escrever_indice(fidx, &nova_raiz, nova_raiz_offset);
+        free(nova_raiz.filhos);
+        free(nova_raiz.chaves);
         // Atualiza metadados
         meta->raiz_offset = nova_raiz_offset;
         meta->raiz_eh_folha = false;
