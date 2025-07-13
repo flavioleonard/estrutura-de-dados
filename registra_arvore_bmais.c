@@ -1,636 +1,364 @@
+// Árvore B+ em disco para registros de alunos
+// Implementação baseada nas orientações do professor e no formato de registros.dat
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
 
-#define ORDEM 500
+#define ORDEM 100 // d (ajuste conforme desejado para testes, ex: 50)
 #define MAX_CHAVES (2 * ORDEM)
 #define MAX_FILHOS (2 * ORDEM + 1)
 #define TAM_NOME 50
-#define TAM_CPF 11
 #define TOTAL_REGISTROS 10000
 
+// Estrutura do registro (igual ao gera_registros.c)
 typedef struct
 {
     char nome[TAM_NOME];
-    char cpf[TAM_CPF];
+    long long int cpf; // 11 dígitos, mas só os 9 primeiros são chave
     int nota;
 } Registro;
 
-long int extrair_chave(char cpf[TAM_CPF])
+// Função para extrair a chave (9 primeiros dígitos do CPF)
+long int extrair_chave(long long int cpf)
 {
-    long int chave = 0;
-    for (int i = 0; i < 9; i++)
-    {
-        chave = chave * 10 + (cpf[i] - '0');
-    }
-    return chave;
+    return cpf / 100; // Remove os dois últimos dígitos
 }
 
-// Estrutura do nó folha da B+
-typedef struct BMaisFolha
-{
-    long int chaves[MAX_CHAVES];    // Chaves (9 primeiros dígitos do CPF)
-    Registro registros[MAX_CHAVES]; // Dados completos
-    int num_chaves;
-    struct BMaisFolha *prox; // Ponteiro para próxima folha
-} BMaisFolha;
-
-// Estrutura do nó interno da B+
-typedef struct BMaisNo
-{
-    long int chaves[MAX_CHAVES];
-    void *filhos[MAX_FILHOS]; // Ponteiros para filhos (nós internos ou folhas)
-    int num_chaves;
-    int eh_folha;
-} BMaisNo;
-
-// Função para criar uma nova folha
-BMaisFolha *criar_folha()
-{
-    BMaisFolha *folha = (BMaisFolha *)malloc(sizeof(BMaisFolha));
-    if (!folha)
-    {
-        printf("[ERRO] Falha ao alocar memória para folha!\n");
-        exit(1);
-    }
-    folha->num_chaves = 0;
-    folha->prox = NULL;
-    return folha;
-}
-
-// Função para criar um novo nó interno
-BMaisNo *criar_no_interno()
-{
-    BMaisNo *no = (BMaisNo *)malloc(sizeof(BMaisNo));
-    no->num_chaves = 0;
-    no->eh_folha = 0;
-    memset(no->filhos, 0, sizeof(no->filhos));
-    return no;
-}
-
-// Estrutura da árvore B+
+// Estrutura do nó folha (arquivo de dados)
 typedef struct
 {
-    void *raiz;
-    int eh_folha_raiz;
-} BMaisArvore;
+    int num_registros; // m
+    long int pai;      // offset do nó pai no arquivo de índice
+    long int prox;     // offset da próxima folha no arquivo de dados
+    Registro registros[MAX_CHAVES];
+} NoFolha;
 
-// Função para inserir na folha (sem split)
-void inserir_na_folha(BMaisFolha *folha, long int chave, Registro reg)
+// Estrutura do nó interno (arquivo de índice)
+typedef struct
 {
-    int i = folha->num_chaves - 1;
-    while (i >= 0 && folha->chaves[i] > chave)
-    {
-        folha->chaves[i + 1] = folha->chaves[i];
-        folha->registros[i + 1] = folha->registros[i];
-        i--;
-    }
-    folha->chaves[i + 1] = chave;
-    folha->registros[i + 1] = reg;
-    folha->num_chaves++;
-}
+    int num_chaves;              // m
+    bool eh_folha;               // TRUE se aponta para folhas
+    long int pai;                // offset do nó pai no arquivo de índice
+    long int filhos[MAX_FILHOS]; // offsets dos filhos (índice ou dados)
+    long int chaves[MAX_CHAVES]; // chaves (9 primeiros dígitos do CPF)
+} NoIndice;
 
-// Função para split de folha
-BMaisFolha *split_folha(BMaisFolha *folha, long int *chave_promovida)
+// Estrutura do arquivo de metadados
+typedef struct
 {
-    BMaisFolha *nova_folha = criar_folha();
-    int meio = MAX_CHAVES / 2;
-    int i;
-    for (i = meio; i < folha->num_chaves; i++)
-    {
-        if (nova_folha->num_chaves >= MAX_CHAVES)
-        {
-            printf("[ERRO] Overflow em nova_folha durante split!\n");
-            exit(1);
-        }
-        nova_folha->chaves[nova_folha->num_chaves] = folha->chaves[i];
-        nova_folha->registros[nova_folha->num_chaves] = folha->registros[i];
-        nova_folha->num_chaves++;
-    }
-    folha->num_chaves = meio;
-    nova_folha->prox = folha->prox;
-    folha->prox = nova_folha;
-    *chave_promovida = nova_folha->chaves[0];
-    return nova_folha;
-}
+    long int raiz_offset; // offset da raiz no arquivo de índice
+    bool raiz_eh_folha;   // TRUE se raiz é folha
+} Metadados;
 
-// Função para split de nó interno
-BMaisNo *split_no(BMaisNo *no, long int *chave_promovida)
-{
-    BMaisNo *novo_no = criar_no_interno();
-    novo_no->eh_folha = no->eh_folha; // Corrige o campo eh_folha!
-    int meio = MAX_CHAVES / 2;
-    int i;
-    // Copia metade superior para novo nó
-    for (i = meio + 1; i < MAX_CHAVES; i++)
-    {
-        novo_no->chaves[novo_no->num_chaves] = no->chaves[i];
-        novo_no->filhos[novo_no->num_chaves] = no->filhos[i];
-        novo_no->num_chaves++;
-    }
-    novo_no->filhos[novo_no->num_chaves] = no->filhos[MAX_CHAVES];
-    *chave_promovida = no->chaves[meio];
-    no->num_chaves = meio;
-    return novo_no;
-}
+// Prototipação das funções principais
+void criar_arvore_bmais(const char *arquivo_registros, const char *arquivo_indices, const char *arquivo_dados, const char *arquivo_meta);
+void inserir_bplus(FILE *fidx, FILE *fdad, FILE *fmeta, Metadados *meta, Registro reg);
 
-// Função recursiva para inserir na árvore B+
-void *inserir_rec(void *no, int eh_folha, long int chave, Registro reg, long int *chave_promovida, void **novo_filho)
+// Função principal
+enum
 {
-    printf("[DEBUG] inserir_rec: no=%p eh_folha=%d chave=%ld\n", no, eh_folha, chave);
-    if (eh_folha)
-    {
-        BMaisFolha *folha = (BMaisFolha *)no;
-        if (folha->num_chaves < MAX_CHAVES)
-        {
-            inserir_na_folha(folha, chave, reg);
-            *novo_filho = NULL;
-            return folha;
-        }
-        else
-        {
-            // Cria um array temporário para inserir o novo elemento e fazer o split corretamente
-            long int temp_chaves[MAX_CHAVES + 1];
-            Registro temp_regs[MAX_CHAVES + 1];
-            int i = 0, j = 0;
-            // Copia e insere na posição correta
-            while (i < folha->num_chaves && folha->chaves[i] < chave)
-            {
-                temp_chaves[j] = folha->chaves[i];
-                temp_regs[j] = folha->registros[i];
-                i++;
-                j++;
-            }
-            temp_chaves[j] = chave;
-            temp_regs[j] = reg;
-            j++;
-            while (i < folha->num_chaves)
-            {
-                temp_chaves[j] = folha->chaves[i];
-                temp_regs[j] = folha->registros[i];
-                i++;
-                j++;
-            }
-            // Atualiza folha original
-            for (i = 0; i < MAX_CHAVES; i++)
-            {
-                folha->chaves[i] = temp_chaves[i];
-                folha->registros[i] = temp_regs[i];
-            }
-            folha->num_chaves = MAX_CHAVES;
-            // Split
-            BMaisFolha *nova_folha = split_folha(folha, chave_promovida);
-            // Copia o restante para nova folha
-            for (i = 0; i < nova_folha->num_chaves; i++)
-            {
-                nova_folha->chaves[i] = temp_chaves[MAX_CHAVES / 2 + i];
-                nova_folha->registros[i] = temp_regs[MAX_CHAVES / 2 + i];
-            }
-            *novo_filho = nova_folha;
-            return folha;
-        }
-    }
-    else
-    {
-        BMaisNo *interno = (BMaisNo *)no;
-        int i = 0;
-        while (i < interno->num_chaves && chave > interno->chaves[i])
-            i++;
-        printf("[DEBUG] inserir_rec no interno: no=%p i=%d num_chaves=%d chave=%ld\n", interno, i, interno->num_chaves, chave);
-        long int chave_promovida_filho;
-        void *novo_filho_filho = NULL;
-        // Correção: todos os filhos são folhas se interno->eh_folha == 1
-        int eh_folha_filho = interno->eh_folha;
-        interno->filhos[i] = inserir_rec(interno->filhos[i], eh_folha_filho, chave, reg, &chave_promovida_filho, &novo_filho_filho);
-        if (novo_filho_filho)
-        {
-            // Inserir chave e ponteiro no nó interno
-            int j = interno->num_chaves;
-            while (j > i)
-            {
-                interno->chaves[j] = interno->chaves[j - 1];
-                interno->filhos[j + 1] = interno->filhos[j];
-                j--;
-            }
-            interno->chaves[i] = chave_promovida_filho;
-            interno->filhos[i + 1] = novo_filho_filho;
-            interno->num_chaves++;
-            if (interno->num_chaves > MAX_CHAVES)
-            {
-                BMaisNo *novo_no = split_no(interno, chave_promovida);
-                *novo_filho = novo_no;
-            }
-            else
-            {
-                *novo_filho = NULL;
-            }
-        }
-        else
-        {
-            *novo_filho = NULL;
-        }
-        return interno;
-    }
-}
-
-// Função principal de inserção na árvore B+
-void inserir_bmais(BMaisArvore *arv, long int chave, Registro reg)
-{
-    if (arv->raiz == NULL)
-    {
-        BMaisFolha *folha = criar_folha();
-        inserir_na_folha(folha, chave, reg);
-        arv->raiz = folha;
-        arv->eh_folha_raiz = 1;
-        return;
-    }
-    long int chave_promovida = 0;
-    void *novo_filho = NULL;
-    arv->raiz = inserir_rec(arv->raiz, arv->eh_folha_raiz, chave, reg, &chave_promovida, &novo_filho);
-    if (novo_filho)
-    {
-        BMaisNo *nova_raiz = criar_no_interno();
-        nova_raiz->chaves[0] = chave_promovida;
-        nova_raiz->filhos[0] = arv->raiz;
-        nova_raiz->filhos[1] = novo_filho;
-        nova_raiz->num_chaves = 1;
-        // Corrige: se a raiz anterior era folha, os filhos do novo nó são folhas!
-        if (arv->eh_folha_raiz)
-            nova_raiz->eh_folha = 1;
-        else
-            nova_raiz->eh_folha = 0;
-        arv->raiz = nova_raiz;
-        arv->eh_folha_raiz = 0;
-    }
-}
-
-// Função para salvar as folhas (dados) em arquivo
-void salvar_folhas(BMaisFolha *folha, const char *nome_arquivo)
-{
-    FILE *f = fopen(nome_arquivo, "wb");
-    if (!f)
-    {
-        perror("Erro ao abrir arquivo de dados das folhas");
-        return;
-    }
-    while (folha)
-    {
-        fwrite(folha->registros, sizeof(Registro), folha->num_chaves, f);
-        folha = folha->prox;
-    }
-    fclose(f);
-}
-
-// Função recursiva para salvar o índice (nós internos e folhas) em arquivo
-void salvar_indice_rec(void *no, int eh_folha, FILE *f)
-{
-    if (eh_folha)
-    {
-        BMaisFolha *folha = (BMaisFolha *)no;
-        fwrite(&folha->num_chaves, sizeof(int), 1, f);
-        fwrite(folha->chaves, sizeof(long int), folha->num_chaves, f);
-        // Não salva os registros completos no índice
-        if (folha->prox)
-        {
-            long int prox_primeira_chave = folha->prox->chaves[0];
-            fwrite(&prox_primeira_chave, sizeof(long int), 1, f);
-        }
-        else
-        {
-            long int nulo = -1;
-            fwrite(&nulo, sizeof(long int), 1, f);
-        }
-    }
-    else
-    {
-        BMaisNo *interno = (BMaisNo *)no;
-        fwrite(&interno->num_chaves, sizeof(int), 1, f);
-        fwrite(interno->chaves, sizeof(long int), interno->num_chaves, f);
-        for (int i = 0; i <= interno->num_chaves; i++)
-        {
-            // Correção: todos os filhos são folhas se interno->eh_folha == 1
-            int eh_folha_filho = interno->eh_folha;
-            salvar_indice_rec(interno->filhos[i], eh_folha_filho, f);
-        }
-    }
-}
-
-// Função para salvar o índice da árvore B+
-void salvar_indice(BMaisArvore *arv, const char *nome_arquivo)
-{
-    FILE *f = fopen(nome_arquivo, "wb");
-    if (!f)
-    {
-        perror("Erro ao abrir arquivo de índice");
-        return;
-    }
-    salvar_indice_rec(arv->raiz, arv->eh_folha_raiz, f);
-    fclose(f);
-}
-
-// Função de busca (consulta) na árvore B+
-Registro *buscar_bmais(BMaisArvore *arv, long int chave)
-{
-    void *no = arv->raiz;
-    int eh_folha = arv->eh_folha_raiz;
-    while (!eh_folha)
-    {
-        BMaisNo *interno = (BMaisNo *)no;
-        int i = 0;
-        while (i < interno->num_chaves && chave > interno->chaves[i])
-            i++;
-        // Corrigido: se interno->eh_folha == 1, os filhos são folhas
-        if (interno->eh_folha)
-        {
-            eh_folha = 1;
-            no = interno->filhos[i];
-        }
-        else
-        {
-            BMaisNo *filho = (BMaisNo *)interno->filhos[i];
-            eh_folha = filho->eh_folha;
-            no = interno->filhos[i];
-        }
-    }
-    BMaisFolha *folha = (BMaisFolha *)no;
-    for (int i = 0; i < folha->num_chaves; i++)
-    {
-        if (folha->chaves[i] == chave)
-        {
-            return &folha->registros[i];
-        }
-    }
-    return NULL;
-}
-
-// Função auxiliar para encontrar o índice da chave em um nó folha
-int indice_chave_folha(BMaisFolha *folha, long int chave)
-{
-    for (int i = 0; i < folha->num_chaves; i++)
-    {
-        if (folha->chaves[i] == chave)
-            return i;
-    }
-    return -1;
-}
-
-// Função para remover de folha
-int remover_de_folha(BMaisFolha *folha, long int chave)
-{
-    int idx = indice_chave_folha(folha, chave);
-    if (idx == -1)
-        return 0; // Não encontrado
-    for (int i = idx; i < folha->num_chaves - 1; i++)
-    {
-        folha->chaves[i] = folha->chaves[i + 1];
-        folha->registros[i] = folha->registros[i + 1];
-    }
-    folha->num_chaves--;
-    return 1;
-}
-
-// Função recursiva para remoção
-int remover_rec(void *no, int eh_folha, long int chave, int *underflow)
-{
-    if (eh_folha)
-    {
-        BMaisFolha *folha = (BMaisFolha *)no;
-        int ok = remover_de_folha(folha, chave);
-        *underflow = (folha->num_chaves < ORDEM);
-        return ok;
-    }
-    else
-    {
-        BMaisNo *interno = (BMaisNo *)no;
-        int i = 0;
-        while (i < interno->num_chaves && chave > interno->chaves[i])
-            i++;
-        int eh_folha_filho = ((BMaisNo *)interno->filhos[i])->eh_folha;
-        int underflow_filho = 0;
-        int ok = remover_rec(interno->filhos[i], eh_folha_filho, chave, &underflow_filho);
-        if (underflow_filho)
-        {
-            // Redistribuição ou concatenação
-            // Para simplificação, só concatena com irmão à direita se possível
-            if (i < interno->num_chaves)
-            {
-                BMaisFolha *folha = (BMaisFolha *)interno->filhos[i];
-                BMaisFolha *irmao = (BMaisFolha *)interno->filhos[i + 1];
-                if (folha->num_chaves + irmao->num_chaves <= MAX_CHAVES)
-                {
-                    // Concatena
-                    for (int j = 0; j < irmao->num_chaves; j++)
-                    {
-                        folha->chaves[folha->num_chaves] = irmao->chaves[j];
-                        folha->registros[folha->num_chaves] = irmao->registros[j];
-                        folha->num_chaves++;
-                    }
-                    folha->prox = irmao->prox;
-                    // Remove ponteiro e chave do nó interno
-                    for (int j = i; j < interno->num_chaves - 1; j++)
-                    {
-                        interno->chaves[j] = interno->chaves[j + 1];
-                        interno->filhos[j + 1] = interno->filhos[j + 2];
-                    }
-                    interno->num_chaves--;
-                    free(irmao);
-                }
-                else
-                {
-                    // Redistribuição: move um registro do irmão para folha
-                    folha->chaves[folha->num_chaves] = irmao->chaves[0];
-                    folha->registros[folha->num_chaves] = irmao->registros[0];
-                    folha->num_chaves++;
-                    for (int j = 0; j < irmao->num_chaves - 1; j++)
-                    {
-                        irmao->chaves[j] = irmao->chaves[j + 1];
-                        irmao->registros[j] = irmao->registros[j + 1];
-                    }
-                    irmao->num_chaves--;
-                    interno->chaves[i] = irmao->chaves[0];
-                }
-            }
-        }
-        *underflow = (interno->num_chaves < ORDEM);
-        return ok;
-    }
-}
-
-// Função principal de remoção
-int remover_bmais(BMaisArvore *arv, long int chave)
-{
-    if (!arv->raiz)
-        return 0;
-    int underflow = 0;
-    int ok = remover_rec(arv->raiz, arv->eh_folha_raiz, chave, &underflow);
-    // Se a raiz ficou com 0 chaves e não é folha, desce um nível
-    if (!arv->eh_folha_raiz && ((BMaisNo *)arv->raiz)->num_chaves == 0)
-    {
-        void *nova_raiz = ((BMaisNo *)arv->raiz)->filhos[0];
-        free(arv->raiz);
-        arv->raiz = nova_raiz;
-        arv->eh_folha_raiz = ((BMaisNo *)nova_raiz)->eh_folha;
-    }
-    return ok;
-}
-
-// Função para imprimir todos os registros das folhas da árvore B+
-void imprimir_folhas(BMaisArvore *arv)
-{
-    if (!arv->raiz)
-    {
-        printf("Árvore vazia.\n");
-        return;
-    }
-    BMaisFolha *folha = NULL;
-    if (arv->eh_folha_raiz)
-    {
-        folha = (BMaisFolha *)arv->raiz;
-    }
-    else
-    {
-        // Encontra a folha mais à esquerda
-        BMaisNo *no = (BMaisNo *)arv->raiz;
-        void *ptr = no;
-        while (!((BMaisNo *)ptr)->eh_folha)
-            ptr = ((BMaisNo *)ptr)->filhos[0];
-        folha = (BMaisFolha *)ptr;
-    }
-    int folha_num = 1;
-    while (folha)
-    {
-        printf("\nFolha %d: %d registros\n", folha_num, folha->num_chaves);
-        for (int i = 0; i < folha->num_chaves; i++)
-        {
-            printf("Chave: %ld | Nome: %.*s | Nota: %d\n", folha->chaves[i], TAM_NOME, folha->registros[i].nome, folha->registros[i].nota);
-        }
-        folha = folha->prox;
-        folha_num++;
-    }
-}
-
-// Nova função para imprimir o índice e o bloco de dados correspondente de cada folha
-void imprimir_indices_e_blocos(BMaisArvore *arv)
-{
-    if (!arv->raiz)
-    {
-        printf("Árvore vazia.\n");
-        return;
-    }
-    BMaisFolha *folha = NULL;
-    if (arv->eh_folha_raiz)
-    {
-        folha = (BMaisFolha *)arv->raiz;
-    }
-    else
-    {
-        BMaisNo *no = (BMaisNo *)arv->raiz;
-        void *ptr = no;
-        while (!((BMaisNo *)ptr)->eh_folha)
-            ptr = ((BMaisNo *)ptr)->filhos[0];
-        folha = (BMaisFolha *)ptr;
-    }
-    int bloco = 0;
-    while (folha)
-    {
-        printf("Bloco de dados %d: ", bloco);
-        for (int i = 0; i < folha->num_chaves; i++)
-        {
-            printf("%ld ", folha->chaves[i]);
-        }
-        printf("\n");
-        folha = folha->prox;
-        bloco++;
-    }
-}
+    ARQ_OK = 0,
+    ARQ_ERR = 1
+};
 
 int main()
 {
+    criar_arvore_bmais("registros.dat", "bplus_index.dat", "bplus_dados.dat", "bplus_meta.dat");
+    printf("Árvore B+ criada e arquivos gerados!\n");
+    return 0;
+}
 
-    FILE *arq = fopen("registros.dat", "rb");
-    printf("Tentando abrir registros.dat...\n");
-    if (!arq)
+// Função para criar a árvore B+ lendo registros.dat e salvando arquivos de índice, dados e metadados
+void criar_arvore_bmais(const char *arquivo_registros, const char *arquivo_indices, const char *arquivo_dados, const char *arquivo_meta)
+{
+    // 1. Abrir arquivos
+    FILE *freg = fopen(arquivo_registros, "rb");
+    if (!freg)
     {
         perror("Erro ao abrir registros.dat");
-        printf("Certifique-se de que o arquivo registros.dat existe e está no mesmo diretório do executável.\n");
-        return 1;
+        exit(1);
     }
-    printf("Arquivo aberto com sucesso!\n");
-    // Verifica tamanho do struct Registro
-    fseek(arq, 0, SEEK_END);
-    long int tam_arquivo = ftell(arq);
-    printf("Tamanho do arquivo: %ld bytes\n", tam_arquivo);
-    fseek(arq, 0, SEEK_SET);
-    printf("Tamanho do struct Registro: %zu bytes\n", sizeof(Registro));
-    if (tam_arquivo % sizeof(Registro) != 0)
+    else
     {
-        printf("Erro: O arquivo registros.dat não está compatível com o struct Registro.\n");
-        fclose(arq);
-        return 1;
+        printf("[DEBUG] registros.dat aberto com sucesso!\n");
     }
+    FILE *fidx = fopen(arquivo_indices, "w+b");
+    if (!fidx)
+    {
+        perror("Erro ao criar arquivo de índice");
+        fclose(freg);
+        exit(1);
+    }
+    FILE *fdad = fopen(arquivo_dados, "w+b");
+    if (!fdad)
+    {
+        perror("Erro ao criar arquivo de dados");
+        fclose(freg);
+        fclose(fidx);
+        exit(1);
+    }
+    FILE *fmeta = fopen(arquivo_meta, "w+b");
+    if (!fmeta)
+    {
+        perror("Erro ao criar arquivo de metadados");
+        fclose(freg);
+        fclose(fidx);
+        fclose(fdad);
+        exit(1);
+    }
+
+    // 2. Inicializar metadados (raiz ainda não existe)
+    Metadados meta = {.raiz_offset = -1, .raiz_eh_folha = true};
+    fwrite(&meta, sizeof(Metadados), 1, fmeta);
+    fflush(fmeta);
+
+    // 3. Inicializar árvore em memória (apenas uma folha inicialmente)
+    NoFolha folha_raiz;
+    folha_raiz.num_registros = 0;
+    folha_raiz.pai = -1;
+    folha_raiz.prox = -1;
+    // Offset da folha raiz no arquivo de dados
+    long int folha_offset = ftell(fdad);
+    fwrite(&folha_raiz, sizeof(NoFolha), 1, fdad);
+    fflush(fdad);
+
+    // Atualiza metadados para apontar para a folha raiz
+    meta.raiz_offset = folha_offset;
+    meta.raiz_eh_folha = true;
+    rewind(fmeta);
+    fwrite(&meta, sizeof(Metadados), 1, fmeta);
+    fflush(fmeta);
+
+    // 4. Ler registros.dat e inserir recursivamente na árvore B+
     Registro reg;
-    int count = 0;
-    BMaisArvore arvore = {0};
-    printf("Iniciando leitura dos registros...\n");
-    // Leitura e inserção na árvore B+
-    while (fread(&reg, sizeof(Registro), 1, arq) == 1)
+    int total = 0;
+    while (fread(&reg, sizeof(Registro), 1, freg) == 1)
     {
-        long int chave = extrair_chave(reg.cpf);
-        inserir_bmais(&arvore, chave, reg);
-        count++;
-        if (count % 100 == 0)
-            printf("Lidos %d registros...\n", count);
+        printf("[DEBUG] Lendo registro: CPF=%lld, Nome=%s, Nota=%d\n", reg.cpf, reg.nome, reg.nota);
+        inserir_bplus(fidx, fdad, fmeta, &meta, reg);
+        total++;
     }
-    fclose(arq);
-    printf("Total de registros lidos e inseridos na B+: %d\n", count);
-    if (count == 0)
+    printf("Registros inseridos: %d\n", total);
+
+    // Fecha arquivos
+    fclose(freg);
+    fclose(fidx);
+    fclose(fdad);
+    fclose(fmeta);
+    printf("[INFO] Estrutura inicial criada. Split, índices e redistribuição ainda não implementados.\n");
+}
+
+// Outras funções auxiliares e de manipulação de nós, splits, concatenação, redistribuição, escrita/leitura em disco
+// devem ser implementadas abaixo...
+// Função auxiliar: escreve folha no arquivo de dados e retorna offset
+long int escrever_folha(FILE *fdad, NoFolha *folha, long int offset)
+{
+    fseek(fdad, offset, SEEK_SET);
+    fwrite(folha, sizeof(NoFolha), 1, fdad);
+    fflush(fdad);
+    return offset;
+}
+
+// Função auxiliar: escreve nó índice no arquivo de índices e retorna offset
+long int escrever_indice(FILE *fidx, NoIndice *indice, long int offset)
+{
+    fseek(fidx, offset, SEEK_SET);
+    fwrite(indice, sizeof(NoIndice), 1, fidx);
+    fflush(fidx);
+    return offset;
+}
+
+// Função auxiliar: lê folha do arquivo de dados
+void ler_folha(FILE *fdad, NoFolha *folha, long int offset)
+{
+    fseek(fdad, offset, SEEK_SET);
+    fread(folha, sizeof(NoFolha), 1, fdad);
+}
+
+// Função auxiliar: lê nó índice do arquivo de índices
+void ler_indice(FILE *fidx, NoIndice *indice, long int offset)
+{
+    fseek(fidx, offset, SEEK_SET);
+    fread(indice, sizeof(NoIndice), 1, fidx);
+}
+
+// Split de folha: retorna offset da nova folha criada e chave promovida
+void split_folha(FILE *fdad, NoFolha *folha, long int folha_offset, long int *nova_folha_offset, long int *chave_promovida)
+{
+    NoFolha nova_folha;
+    nova_folha.num_registros = 0;
+    nova_folha.pai = folha->pai;
+    nova_folha.prox = folha->prox;
+    int meio = MAX_CHAVES / 2;
+    for (int i = meio; i < MAX_CHAVES; i++)
     {
-        printf("Nenhum registro foi lido. Verifique o arquivo registros.dat.\n");
-        return 1;
+        nova_folha.registros[nova_folha.num_registros++] = folha->registros[i];
     }
-    // Salva as folhas (dados) e o índice (estrutura da árvore)
-    if (arvore.eh_folha_raiz)
-        salvar_folhas((BMaisFolha *)arvore.raiz, "bplus_dados.dat");
+    folha->num_registros = meio;
+    // Atualiza ponteiros
+    *nova_folha_offset = ftell(fdad);
+    nova_folha.prox = folha->prox;
+    folha->prox = *nova_folha_offset;
+    // Escreve folhas
+    escrever_folha(fdad, folha, folha_offset);
+    escrever_folha(fdad, &nova_folha, *nova_folha_offset);
+    // Chave promovida: menor chave da nova folha
+    *chave_promovida = extrair_chave(nova_folha.registros[0].cpf);
+}
+
+// Split de índice: retorna offset do novo índice criado e chave promovida
+void split_indice(FILE *fidx, NoIndice *indice, long int indice_offset, long int *novo_indice_offset, long int *chave_promovida)
+{
+    NoIndice novo_indice;
+    novo_indice.num_chaves = 0;
+    novo_indice.eh_folha = indice->eh_folha;
+    novo_indice.pai = indice->pai;
+    int meio = MAX_CHAVES / 2;
+    // Chave promovida é a do meio
+    *chave_promovida = indice->chaves[meio];
+    // Copia metade superior para novo índice
+    int j = 0;
+    for (int i = meio + 1; i < indice->num_chaves; i++)
+    {
+        novo_indice.chaves[j] = indice->chaves[i];
+        novo_indice.filhos[j] = indice->filhos[i];
+        j++;
+        novo_indice.num_chaves++;
+    }
+    novo_indice.filhos[j] = indice->filhos[indice->num_chaves];
+    // Atualiza índice original
+    indice->num_chaves = meio;
+    // Escreve índices
+    *novo_indice_offset = ftell(fidx);
+    escrever_indice(fidx, indice, indice_offset);
+    escrever_indice(fidx, &novo_indice, *novo_indice_offset);
+}
+
+// Inserção recursiva: insere registro e propaga splits
+void inserir_recursivo(FILE *fidx, FILE *fdad, FILE *fmeta, Metadados *meta, long int no_offset, Registro reg, bool eh_folha, long int *nova_chave, long int *novo_filho_offset)
+{
+    if (eh_folha)
+    {
+        // Inserir em folha
+        NoFolha folha;
+        ler_folha(fdad, &folha, no_offset);
+        // Inserção ordenada
+        int i = folha.num_registros - 1;
+        while (i >= 0 && extrair_chave(folha.registros[i].cpf) > extrair_chave(reg.cpf))
+        {
+            folha.registros[i + 1] = folha.registros[i];
+            i--;
+        }
+        folha.registros[i + 1] = reg;
+        folha.num_registros++;
+        if (folha.num_registros <= MAX_CHAVES)
+        {
+            if (nova_chave)
+                *nova_chave = -1;
+            if (novo_filho_offset)
+                *novo_filho_offset = -1;
+            escrever_folha(fdad, &folha, no_offset);
+            return;
+        }
+        else
+        {
+            // Split de folha
+            long int nova_folha_offset, chave_promovida;
+            split_folha(fdad, &folha, no_offset, &nova_folha_offset, &chave_promovida);
+            if (nova_chave)
+                *nova_chave = chave_promovida;
+            if (novo_filho_offset)
+                *novo_filho_offset = nova_folha_offset;
+            return;
+        }
+    }
     else
     {
-        BMaisNo *no = (BMaisNo *)arvore.raiz;
-        void *folha = no;
-        while (!((BMaisNo *)folha)->eh_folha)
-            folha = ((BMaisNo *)folha)->filhos[0];
-        salvar_folhas((BMaisFolha *)folha, "bplus_dados.dat");
+        // Inserir em índice
+        NoIndice indice;
+        ler_indice(fidx, &indice, no_offset);
+        // Descobre filho correto
+        int pos = 0;
+        while (pos < indice.num_chaves && extrair_chave(reg.cpf) >= indice.chaves[pos])
+            pos++;
+        long int nova_chave_val = -1, novo_filho_offset_val = -1;
+        inserir_recursivo(fidx, fdad, fmeta, meta, indice.filhos[pos], reg, indice.eh_folha, &nova_chave_val, &novo_filho_offset_val);
+        if (nova_chave_val == -1)
+            return; // Não houve split abaixo
+        // Inserir nova_chave e novo_filho_offset neste índice
+        for (int i = indice.num_chaves; i > pos; i--)
+        {
+            indice.chaves[i] = indice.chaves[i - 1];
+            indice.filhos[i + 1] = indice.filhos[i];
+        }
+        indice.chaves[pos] = nova_chave_val;
+        indice.filhos[pos + 1] = novo_filho_offset_val;
+        indice.num_chaves++;
+        if (indice.num_chaves <= MAX_CHAVES)
+        {
+            escrever_indice(fidx, &indice, no_offset);
+            return;
+        }
+        else
+        {
+            // Split de índice
+            long int novo_indice_offset, chave_promovida;
+            split_indice(fidx, &indice, no_offset, &novo_indice_offset, &chave_promovida);
+            // Se este nó é a raiz, criar nova raiz
+            if (indice.pai == -1)
+            {
+                NoIndice nova_raiz;
+                nova_raiz.num_chaves = 1;
+                nova_raiz.eh_folha = false;
+                nova_raiz.pai = -1;
+                nova_raiz.chaves[0] = chave_promovida;
+                nova_raiz.filhos[0] = no_offset;
+                nova_raiz.filhos[1] = novo_indice_offset;
+                long int nova_raiz_offset = ftell(fidx);
+                escrever_indice(fidx, &nova_raiz, nova_raiz_offset);
+                // Atualiza metadados
+                meta->raiz_offset = nova_raiz_offset;
+                meta->raiz_eh_folha = false;
+                rewind(fmeta);
+                fwrite(meta, sizeof(Metadados), 1, fmeta);
+                fflush(fmeta);
+            }
+            else
+            {
+                // Propaga split para cima
+                if (nova_chave)
+                    *nova_chave = chave_promovida;
+                if (novo_filho_offset)
+                    *novo_filho_offset = novo_indice_offset;
+            }
+        }
     }
-    salvar_indice(&arvore, "bplus_index.dat");
-    printf("Arquivos bplus_dados.dat e bplus_index.dat gerados!\n");
+}
 
-    // Imprime índice e bloco de dados de cada folha
-    imprimir_indices_e_blocos(&arvore);
-
-    // Exemplos de uso das novas funções:
-    // Exemplo de consulta
-    long int chave_busca = 123456789;
-    Registro *resultado = buscar_bmais(&arvore, chave_busca);
-    if (resultado)
+// Nova função principal de inserção
+void inserir_bplus(FILE *fidx, FILE *fdad, FILE *fmeta, Metadados *meta, Registro reg)
+{
+    long int nova_chave = -1, novo_filho_offset = -1;
+    inserir_recursivo(fidx, fdad, fmeta, meta, meta->raiz_offset, reg, meta->raiz_eh_folha, &nova_chave, &novo_filho_offset);
+    // Se houve split na raiz folha, criar nova raiz
+    if (nova_chave != -1 && meta->raiz_eh_folha)
     {
-        printf("Registro encontrado: %.*s\n", TAM_NOME, resultado->nome);
+        NoIndice nova_raiz;
+        nova_raiz.num_chaves = 1;
+        nova_raiz.eh_folha = true;
+        nova_raiz.pai = -1;
+        nova_raiz.chaves[0] = nova_chave;
+        nova_raiz.filhos[0] = meta->raiz_offset;
+        nova_raiz.filhos[1] = novo_filho_offset;
+        long int nova_raiz_offset = ftell(fidx);
+        escrever_indice(fidx, &nova_raiz, nova_raiz_offset);
+        // Atualiza metadados
+        meta->raiz_offset = nova_raiz_offset;
+        meta->raiz_eh_folha = false;
+        rewind(fmeta);
+        fwrite(meta, sizeof(Metadados), 1, fmeta);
+        fflush(fmeta);
     }
-    else
-    {
-        printf("Registro não encontrado!\n");
-    }
-
-    /*
-    // Exemplo de remoção
-    long int chave_remover = 123456789;
-    int ok = remover_bmais(&arvore, chave_remover);
-    if (ok)
-    {
-        printf("Removido!\n");
-    }
-    else
-    {
-        printf("Chave não encontrada!\n");
-    }
-    */
-
-    return 0;
 }
