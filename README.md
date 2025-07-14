@@ -96,9 +96,54 @@ Escolha a opção 2 para ver os registros que foram gerados.
 <img width="682" height="616" alt="image" src="https://github.com/user-attachments/assets/ea050524-0e18-4ec1-8cef-ac59bbabf4a8" />
 
 
+## 4. Heap (Heap Máxima em Arquivo)
 
+O módulo de Heap permite manipular um ranking de registros (nome, CPF, nota) diretamente em arquivo, utilizando a estrutura de heap máxima. Todas as operações são feitas em disco, simulando um cenário realista de grandes volumes de dados.
 
+### Arquivo principal
+- `heap_arquivo.c`
+- **Executável:** `heap_arquivo.exe`
+- **Arquivo de dados:** `heap.dat` (gerado a partir de `registros.dat`)
 
+### Como usar
+1. **Compile o arquivo:**
+   ```sh
+   gcc heap_arquivo.c -o heap_arquivo.exe
+   ```
+2. **Execute o programa:**
+   ```sh
+   ./heap_arquivo.exe
+   ```
+
+### Funcionalidades do menu interativo
+
+O menu do programa oferece as seguintes opções:
+
+1. **Gerar heap máxima em disco**
+   - Copia todos os registros de `registros.dat` para `heap.dat` e constrói a heap máxima.
+   - Deve ser a primeira opção utilizada.
+
+2. **Mostrar ranking (top k notas)**
+   - Permite visualizar os `k` registros com as maiores notas diretamente do arquivo heap.
+   - O usuário informa o valor de `k`.
+
+3. **Inserir novo registro na heap**
+   - Permite inserir um novo registro (nome, CPF, nota) na heap em disco.
+   - O registro é adicionado ao final do arquivo e a operação de subida é realizada para manter a propriedade de heap máxima.
+
+4. **Excluir raiz da heap (maior nota)**
+   - Remove o registro com a maior nota (raiz da heap).
+   - O último registro do arquivo substitui a raiz e a operação de descida é realizada para restaurar a heap.
+
+0. **Sair**
+   - Encerra o programa.
+
+#### Observações importantes
+- Sempre gere a heap máxima antes de usar as demais opções.
+- O valor de `n` (quantidade de registros na heap) é atualizado automaticamente após inserções e exclusões.
+- O arquivo `heap.dat` é manipulado diretamente, simulando operações eficientes para grandes volumes de dados.
+
+---
 
 ## Estrutura do Projeto
 ```
