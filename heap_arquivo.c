@@ -1,6 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifdef _WIN32
+#include <io.h>
+#endif
 
 #define MAX_NOME 50
 #define ARQ_HEAP "heap.dat"
@@ -90,6 +93,64 @@ void constroi_heap_maximo(FILE *fp, int n)
         descer(fp, i, n);
 }
 
+// Insere um registro na heap em disco
+int inserir_registro_heap(const char *arq_heap, int n, Registro *novo)
+{
+    FILE *fp = fopen(arq_heap, "rb+");
+    if (!fp)
+    {
+        perror("Erro ao abrir heap.dat");
+        exit(1);
+    }
+    // Adiciona no final
+    fseek(fp, 0, SEEK_END);
+    fwrite(novo, sizeof(Registro), 1, fp);
+    fclose(fp);
+    // Subida
+    fp = fopen(arq_heap, "rb+");
+    if (!fp)
+    {
+        perror("Erro ao abrir heap.dat");
+        exit(1);
+    }
+    subir(fp, n + 1);
+    fclose(fp);
+    return n + 1;
+}
+
+// Exclui a raiz da heap em disco
+int excluir_raiz_heap(const char *arq_heap, int n)
+{
+    if (n < 1)
+        return 0;
+    FILE *fp = fopen(arq_heap, "rb+");
+    if (!fp)
+    {
+        perror("Erro ao abrir heap.dat");
+        exit(1);
+    }
+    Registro ultimo;
+    ler_registro(fp, n, &ultimo);
+    escrever_registro(fp, 1, &ultimo);
+    fclose(fp);
+// Trunca o arquivo para remover o ultimo
+#ifdef _WIN32
+    _chsize_s(_fileno(fopen(arq_heap, "rb+")), (n - 1) * sizeof(Registro));
+#else
+    truncate(arq_heap, (n - 1) * sizeof(Registro));
+#endif
+    // Descida
+    fp = fopen(arq_heap, "rb+");
+    if (!fp)
+    {
+        perror("Erro ao abrir heap.dat");
+        exit(1);
+    }
+    descer(fp, 1, n - 1);
+    fclose(fp);
+    return n - 1;
+}
+
 // Copia registros.dat para heap.dat (1-based)
 int inicializa_heap_arquivo(const char *arq_regs, const char *arq_heap)
 {
@@ -132,6 +193,19 @@ void mostrar_top_k(const char *arq_heap, int n, int k)
     fclose(fp);
 }
 
+// Função para ler um novo registro do usuário
+void ler_novo_registro(Registro *reg)
+{
+    printf("Digite o nome: ");
+    getchar(); // Limpa o \n pendente
+    fgets(reg->nome, MAX_NOME, stdin);
+    reg->nome[strcspn(reg->nome, "\n")] = '\0'; // Remove \n
+    printf("Digite o CPF: ");
+    scanf("%lld", &reg->cpf);
+    printf("Digite a nota: ");
+    scanf("%d", &reg->nota);
+}
+
 void menu()
 {
     int n = 0;
@@ -142,6 +216,8 @@ void menu()
         printf("\nMENU:\n");
         printf("1 - Gerar heap maxima em disco\n");
         printf("2 - Mostrar ranking (top k notas)\n");
+        printf("3 - Inserir novo registro na heap\n");
+        printf("4 - Excluir raiz da heap (maior nota)\n");
         printf("0 - Sair\n");
         printf("Escolha: ");
         if (scanf("%d", &opcao) != 1)
@@ -183,6 +259,33 @@ void menu()
                 break;
             }
             mostrar_top_k(ARQ_HEAP, n, k);
+            break;
+        case 3:
+            if (!carregado)
+            {
+                printf("Primeiro gere a heap maxima em disco!\n");
+                break;
+            }
+            {
+                Registro novo;
+                ler_novo_registro(&novo);
+                n = inserir_registro_heap(ARQ_HEAP, n, &novo);
+                printf("Registro inserido com sucesso! Agora a heap tem %d elementos.\n", n);
+            }
+            break;
+        case 4:
+            if (!carregado)
+            {
+                printf("Primeiro gere a heap maxima em disco!\n");
+                break;
+            }
+            if (n < 1)
+            {
+                printf("Heap vazia!\n");
+                break;
+            }
+            n = excluir_raiz_heap(ARQ_HEAP, n);
+            printf("Raiz excluida! Agora a heap tem %d elementos.\n", n);
             break;
         case 0:
             printf("Saindo...\n");
