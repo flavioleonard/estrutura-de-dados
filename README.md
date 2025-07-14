@@ -122,18 +122,30 @@ O menu do programa oferece as seguintes opções:
 1. **Gerar heap máxima em disco**
    - Copia todos os registros de `registros.dat` para `heap.dat` e constrói a heap máxima.
    - Deve ser a primeira opção utilizada.
+<img width="1070" height="306" alt="image" src="https://github.com/user-attachments/assets/f80edb37-8253-4817-b1bd-0d6d858a429a" />
+
 
 2. **Mostrar ranking (top k notas)**
    - Permite visualizar os `k` registros com as maiores notas diretamente do arquivo heap.
    - O usuário informa o valor de `k`.
+<img width="636" height="921" alt="image" src="https://github.com/user-attachments/assets/6ec28cae-b20e-4f6f-9415-5e56b431444d" />
+
 
 3. **Inserir novo registro na heap**
    - Permite inserir um novo registro (nome, CPF, nota) na heap em disco.
    - O registro é adicionado ao final do arquivo e a operação de subida é realizada para manter a propriedade de heap máxima.
+<img width="1074" height="466" alt="image" src="https://github.com/user-attachments/assets/db84f5fc-73c1-4a35-ad67-81c5055d1dc2" />
+
 
 4. **Excluir raiz da heap (maior nota)**
    - Remove o registro com a maior nota (raiz da heap).
    - O último registro do arquivo substitui a raiz e a operação de descida é realizada para restaurar a heap.
+<img width="700" height="154" alt="image" src="https://github.com/user-attachments/assets/0ba74d29-54b6-4b3b-9e62-38262708a258" />
+Veja que abaixo o primeiro foi eliminado era o Erick Cardoso
+<img width="1125" height="510" alt="image" src="https://github.com/user-attachments/assets/4cd8ef27-c14a-4b0a-8c77-991d8549ba69" />
+
+
+
 
 0. **Sair**
    - Encerra o programa.
