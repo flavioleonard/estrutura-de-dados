@@ -134,7 +134,12 @@ O menu do programa oferece as seguintes opções:
 3. **Inserir novo registro na heap**
    - Permite inserir um novo registro (nome, CPF, nota) na heap em disco.
    - O registro é adicionado ao final do arquivo e a operação de subida é realizada para manter a propriedade de heap máxima.
-<img width="1074" height="466" alt="image" src="https://github.com/user-attachments/assets/db84f5fc-73c1-4a35-ad67-81c5055d1dc2" />
+<img width="811" height="336" alt="image" src="https://github.com/user-attachments/assets/31814835-2561-4fdc-b84c-6cdef81adeaf" />
+
+4. **Buscar**
+- Permite buscar o registro na heap
+<img width="1017" height="320" alt="image" src="https://github.com/user-attachments/assets/e2f42064-af31-40f8-acab-6229a0a22cdb" />
+
 
 
 4. **Excluir raiz da heap (maior nota)**
