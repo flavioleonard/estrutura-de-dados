@@ -1,7 +1,6 @@
 
 #include "TARVBP.h"
 #include <string.h>
-// ...existing code...
 
 static int remove_de_folha(TARVBP *no, const char *chave)
 {
@@ -19,14 +18,6 @@ static int remove_de_folha(TARVBP *no, const char *chave)
     return 1;
 }
 
-#include "TARVBP.h"
-#include <string.h>
-// ...existing code...
-
-// Remove a chave de um nó folha
-// ...existing code...
-
-// Função auxiliar para zerar o registro no arquivo de dados
 static void zera_registro_dados(const char *dados, long long pos)
 {
     Dados vazio = {0};
@@ -39,7 +30,6 @@ static void zera_registro_dados(const char *dados, long long pos)
     }
 }
 
-// Função principal de remoção completa
 long long TARVBP_remove(long reg, char *chave, int t, char *idx, char *dados, int *diminuiu)
 {
     if (reg == -1)
@@ -73,6 +63,12 @@ long long TARVBP_remove(long reg, char *chave, int t, char *idx, char *dados, in
             return reg;
         }
         escrever_no(idx, reg, &no);
+        printf("[DEBUG] Chaves do no folha apos remocao: ");
+        for (int k = 0; k < no.num_chaves; k++)
+        {
+            printf("%s ", no.chaves[k]);
+        }
+        printf("\n");
         *diminuiu = (no.num_chaves < t - 1);
         return reg;
     }

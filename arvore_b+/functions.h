@@ -4,9 +4,9 @@
 
 typedef struct
 {
-    long long int cpf; // CPF como long long int (11 dígitos)
     char nome[50];
-    int nota_final;
+    long long int cpf;
+    int nota;
 } Dados;
 
 // Inicializa arquivos de índice e dados (implementado em functions.c)

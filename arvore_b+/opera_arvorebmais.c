@@ -61,6 +61,7 @@ int main()
             long long int cpf;
             ler_cpf_chave(&cpf, chave);
             long long pos = busca_cpf("bplus_index.dat", chave, raiz);
+            printf("[DEBUG] Posicao retornada pelo indice: %lld\n", pos);
             if (pos == -1)
             {
                 printf("Registro nao encontrado para chave %s\n", chave);
@@ -77,11 +78,19 @@ int main()
                 Dados d;
                 fread(&d, sizeof(Dados), 1, fdados);
                 fclose(fdados);
-                // Exibe o registro encontrado
-                printf("\nRegistro encontrado:\n");
-                printf("CPF: %011lld\n", d.cpf); // Mostra os 11 dígitos
-                printf("Nome: %s\n", d.nome);
-                printf("Nota final: %d\n", d.nota_final);
+                printf("[DEBUG] Valor lido do campo cpf: %lld\n", d.cpf);
+                if (d.cpf == 0)
+                {
+                    printf("Registro removido para chave %s\n", chave);
+                }
+                else
+                {
+                    // Exibe o registro encontrado
+                    printf("\nRegistro encontrado:\n");
+                    printf("CPF: %011lld\n", d.cpf); // Mostra os 11 dígitos
+                    printf("Nome: %s\n", d.nome);
+                    printf("Nota final: %d\n", d.nota);
+                }
             }
         }
         else if (op == 2)
@@ -95,7 +104,7 @@ int main()
             if (len > 0 && d.nome[len - 1] == '\n')
                 d.nome[len - 1] = '\0';
             printf("Digite a nota (0 a 100): ");
-            while (scanf("%d", &d.nota_final) != 1)
+            while (scanf("%d", &d.nota) != 1)
             {
                 printf("Entrada invalida. Digite a nota (0 a 100): ");
                 while (getchar() != '\n')

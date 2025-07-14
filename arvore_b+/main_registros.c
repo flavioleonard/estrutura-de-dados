@@ -22,7 +22,7 @@ void Registro_para_Dados(const Registro *reg, Dados *d)
 {
     d->cpf = reg->cpf; // Mantém o CPF inteiro (11 dígitos)
     memcpy(d->nome, reg->nome, 50);
-    d->nota_final = reg->nota;
+    d->nota = reg->nota;
 }
 
 int main()
