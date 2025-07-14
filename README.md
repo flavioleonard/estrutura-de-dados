@@ -42,6 +42,8 @@ Escolha a opção 2 para ver os registros que foram gerados.
    gcc enderecamento_aberto.c -o enderecamento_aberto.exe
    ./enderecamento_aberto.exe
    - isso pode demorar alguns segundos
+<img width="1065" height="148" alt="image" src="https://github.com/user-attachments/assets/4144c340-7a47-4724-8a8f-05e722562ed7" />
+
    ```
    Isso criará `tabela_hash.dat` com todos os registros de `../registros.dat`.
 
@@ -82,6 +84,21 @@ Escolha a opção 2 para ver os registros que foram gerados.
 > - Sempre gere ou atualize `registros.dat` antes de testar as estruturas.
 
 ---
+
+4. **Busque** um CPF de registros.dat. Voce pode encontrar o cpf abrindo gera_registros.exe e digitando 2. 
+<img width="1317" height="556" alt="image" src="https://github.com/user-attachments/assets/81c264a6-3922-42a2-b791-9c4991fe447b" />
+
+5. **Inserindo** registro e buscando para conferir que foi inserido 
+<img width="616" height="424" alt="image" src="https://github.com/user-attachments/assets/c78c3152-e3aa-4005-a1d5-8e98e9caaeac" />
+<img width="628" height="492" alt="image" src="https://github.com/user-attachments/assets/22101503-6174-4115-8741-b9fe51f6f90b" />
+
+6. **Apagando** registro e tentando buscar -> registro nao encontrado
+<img width="682" height="616" alt="image" src="https://github.com/user-attachments/assets/ea050524-0e18-4ec1-8cef-ac59bbabf4a8" />
+
+
+
+
+
 
 ## Estrutura do Projeto
 ```
