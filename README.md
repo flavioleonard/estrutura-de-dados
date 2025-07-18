@@ -6,7 +6,7 @@ Trabalho para a matéria de Estrutura de Dados lecionada pelo professor Luis Ant
 
 O fluxo principal do projeto é:
 1. **Gerar registros aleatórios** (base de dados comum)
-2. **Carregar esses registros** em uma estrutura (Hash ou B+)
+2. **Carregar esses registros** em uma estrutura (Hash, B+ ou Heap)
 3. **Manipular e consultar** os dados via menus interativos
 
 ---
