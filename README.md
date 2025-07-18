@@ -1,7 +1,7 @@
 # Estruturas de Dados: Projeto de Tabela Hash e Árvore B+
 
 ## Visão Geral
-Este repositório reúne implementações didáticas de duas importantes estruturas de dados: **Tabela Hash com Endereçamento Aberto**, **Árvore B+** e **Heap**. 
+Este repositório reúne implementações didáticas de três importantes estruturas de dados: **Tabela Hash com Endereçamento Aberto**, **Árvore B+** e **Heap**. 
 Trabalho para a matéria de Estrutura de Dados lecionada pelo professor Luis Antonio Kowada.
 
 O fluxo principal do projeto é:
